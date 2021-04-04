@@ -1,113 +1,205 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * Generated with the TypeScript template
- * https://github.com/react-native-community/react-native-template-typescript
- *
- * @format
- */
-
-import type { Node } from "react";
-import React from "react";
+import { FC, useEffect, useRef, useState } from "react";
 import {
+  FlatList,
+  FlatListProps,
+  GestureResponderEvent,
+  LayoutChangeEvent,
+  ListRenderItemInfo,
+  Pressable,
   SafeAreaView,
-  ScrollView,
-  StatusBar,
   StyleSheet,
   Text,
-  useColorScheme,
   View,
 } from "react-native";
+import { PanGestureHandler } from "react-native-gesture-handler";
+import Animated, {
+  runOnJS,
+  useAnimatedGestureHandler,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useDerivedValue,
+  useSharedValue,
+} from "react-native-reanimated";
 
-import {
-  Colors,
-  DebugInstructions,
-  Header,
-  LearnMoreLinks,
-  ReloadInstructions,
-} from "react-native/Libraries/NewAppScreen";
+/**
+ * From https://stackoverflow.com/a/1484514.
+ */
+function getRandomColor() {
+  const letters = "0123456789ABCDEF";
 
-const Section = ({ children, title }): Node => {
-  const isDarkMode = useColorScheme() === "dark";
-  return (
-    <View style={styles.sectionContainer}>
-      <Text
-        style={[
-          styles.sectionTitle,
-          {
-            color: isDarkMode ? Colors.white : Colors.black,
-          },
-        ]}
+  let color = "#";
+  for (let i = 0; i < 6; i++) {
+    color += letters[Math.floor(Math.random() * 16)];
+  }
+
+  return color;
+}
+
+const AnimatedFlatList = Animated.createAnimatedComponent<FlatListProps<number>>(FlatList);
+
+export const App: FC = () => {
+  const [data, setData] = useState<number[]>([]);
+  const [colors, setColors] = useState<string[]>([]);
+
+  const listContainerRef = useRef<View>(null);
+  const listRef = useRef<FlatList<number>>(null);
+  const listContentOffsetY = useSharedValue(0);
+  const itemHeights = useSharedValue<number[]>([]);
+
+  const draggedItemIndex = useSharedValue<number | null>(null);
+  const [draggedItem, setDraggedItem] = useState<number>();
+  const setDraggedItemByIndex = (index: number | null) => {
+    if (index == null) {
+      setDraggedItem(undefined);
+    } else {
+      setDraggedItem(data[index]);
+    }
+  };
+  useDerivedValue(() => {
+    runOnJS(setDraggedItemByIndex)(draggedItemIndex.value);
+  }, [draggedItemIndex, data]);
+
+  const hoverItemOffsetX = useSharedValue(0);
+  const hoverItemOffsetY = useSharedValue(0);
+  const hoverItemTranslateX = useSharedValue(0);
+  const hoverItemTranslateY = useSharedValue(0);
+  const hoverItemAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: hoverItemTranslateX.value },
+      { translateY: hoverItemTranslateY.value },
+    ],
+  }));
+
+  const panGestureHandler = useAnimatedGestureHandler({
+    // onStart: event => console.log(`start: ${event}`),
+    onActive: event => {
+      hoverItemTranslateX.value = hoverItemOffsetX.value + event.translationX;
+      hoverItemTranslateY.value = hoverItemOffsetY.value + event.translationY;
+    },
+    // onCancel: event => console.log(`cancel: ${event}`),
+    // onFail: event => console.log(`fail: ${event}`),
+    onEnd: () => {
+      draggedItemIndex.value = null;
+    },
+    // onFinish: event => console.log(`finish: ${event}`),
+  });
+
+  const handleScroll = useAnimatedScrollHandler({
+    onScroll: event => {
+      listContentOffsetY.value = event.contentOffset.y;
+    },
+  });
+
+  useEffect(() => {
+    const newData = [];
+    const rowColors = [];
+    for (let i = 0; i < 1000; i++) {
+      newData.push(i);
+      rowColors.push(getRandomColor());
+    }
+
+    setData(newData);
+    setColors(rowColors);
+  }, []);
+
+  const handleLongPress = (event: GestureResponderEvent, index?: number) => {
+    if (index == null) {
+      return;
+    }
+
+    listRef.current?.setNativeProps({ scrollEnabled: false });
+    draggedItemIndex.value = index;
+
+    listContainerRef.current?.measure((_x, _y, _width, _height, listPageX, listPageY) => {
+      const { pageX, pageY, locationX, locationY } = event.nativeEvent;
+
+      hoverItemOffsetX.value = pageX - listPageX - locationX;
+      hoverItemOffsetY.value = pageY - listPageY - locationY;
+      hoverItemTranslateX.value = pageX - listPageX - locationX;
+      hoverItemTranslateY.value = pageY - listPageY - locationY;
+    });
+  };
+
+  const handleItemLayout = (event: LayoutChangeEvent, index?: number) => {
+    if (index == null) {
+      return;
+    }
+
+    itemHeights.value[index] = event.nativeEvent.layout.height;
+  };
+
+  const renderItem = ({ item, index }: Partial<ListRenderItemInfo<number>>) => {
+    const dynamicStyle = {
+      backgroundColor: colors[item as number],
+    };
+
+    return (
+      <Pressable
+        onLongPress={event => handleLongPress(event, index)}
+        onLayout={event => handleItemLayout(event, index)}
       >
-        {title}
-      </Text>
-      <Text
-        style={[
-          styles.sectionDescription,
-          {
-            color: isDarkMode ? Colors.light : Colors.dark,
-          },
-        ]}
-      >
-        {children}
-      </Text>
-    </View>
-  );
-};
-
-const App: () => Node = () => {
-  const isDarkMode = useColorScheme() === "dark";
-
-  const backgroundStyle = {
-    backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
+        <View style={[styles.item, dynamicStyle]}>
+          <Text style={styles.itemTitle}>{item}</Text>
+        </View>
+      </Pressable>
+    );
   };
 
   return (
-    <SafeAreaView style={backgroundStyle}>
-      <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} />
-      <ScrollView contentInsetAdjustmentBehavior="automatic" style={backgroundStyle}>
-        <Header />
-        <View
-          style={{
-            backgroundColor: isDarkMode ? Colors.black : Colors.white,
-          }}
-        >
-          <Section title="Step One">
-            Edit <Text style={styles.highlight}>App.js</Text> to change this screen and then come
-            back to see your edits.
-          </Section>
-          <Section title="See Your Changes">
-            <ReloadInstructions />
-          </Section>
-          <Section title="Debug">
-            <DebugInstructions />
-          </Section>
-          <Section title="Learn More">Read the docs to discover what to do next:</Section>
-          <LearnMoreLinks />
-        </View>
-      </ScrollView>
+    <SafeAreaView>
+      <PanGestureHandler
+        onGestureEvent={panGestureHandler}
+        simultaneousHandlers={listRef}
+        onEnded={() => listRef.current?.setNativeProps({ scrollEnabled: true })}
+      >
+        <Animated.View>
+          <View ref={listContainerRef}>
+            <AnimatedFlatList
+              data={data}
+              renderItem={renderItem}
+              keyExtractor={item => item.toString()}
+              scrollEventThrottle={16}
+              onScroll={handleScroll}
+              ref={listRef}
+            />
+          </View>
+          <Animated.View style={[styles.hoverItem, hoverItemAnimatedStyle]}>
+            {draggedItem && renderItem({ item: draggedItem })}
+          </Animated.View>
+        </Animated.View>
+      </PanGestureHandler>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  sectionContainer: {
-    marginTop: 32,
-    paddingHorizontal: 24,
+  item: {
+    paddingVertical: 16,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  sectionTitle: {
+  itemTitle: {
     fontSize: 24,
-    fontWeight: "600",
+    fontWeight: "bold",
   },
-  sectionDescription: {
-    marginTop: 8,
-    fontSize: 18,
-    fontWeight: "400",
+  muted: {
+    opacity: 0.2,
   },
-  highlight: {
-    fontWeight: "700",
+  hover: {
+    borderWidth: 5,
+    zIndex: 999,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 6,
+    },
+    shadowOpacity: 0.37,
+    shadowRadius: 7.49,
+    elevation: 12,
+  },
+  hoverItem: {
+    position: "absolute",
+    opacity: 0.8,
+    width: "100%",
   },
 });
-
-export default App;
