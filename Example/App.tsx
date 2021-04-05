@@ -61,20 +61,20 @@ export const App: FC = () => {
 
   const hoverItemOffsetX = useSharedValue(0);
   const hoverItemOffsetY = useSharedValue(0);
-  const hoverItemTranslateX = useSharedValue(0);
-  const hoverItemTranslateY = useSharedValue(0);
+  const hoverItemDragX = useSharedValue(0);
+  const hoverItemDragY = useSharedValue(0);
   const hoverItemAnimatedStyle = useAnimatedStyle(() => ({
     transform: [
-      { translateX: hoverItemTranslateX.value },
-      { translateY: hoverItemTranslateY.value },
+      { translateX: hoverItemOffsetX.value + hoverItemDragX.value },
+      { translateY: hoverItemOffsetY.value + hoverItemDragY.value },
     ],
   }));
 
   const panGestureHandler = useAnimatedGestureHandler({
     // onStart: event => console.log(`start: ${event}`),
     onActive: event => {
-      hoverItemTranslateX.value = hoverItemOffsetX.value + event.translationX;
-      hoverItemTranslateY.value = hoverItemOffsetY.value + event.translationY;
+      hoverItemDragX.value = event.translationX;
+      hoverItemDragY.value = event.translationY;
     },
     // onCancel: event => console.log(`cancel: ${event}`),
     // onFail: event => console.log(`fail: ${event}`),
@@ -113,10 +113,10 @@ export const App: FC = () => {
     listContainerRef.current?.measure((_x, _y, _width, _height, listPageX, listPageY) => {
       const { pageX, pageY, locationX, locationY } = event.nativeEvent;
 
+      hoverItemDragX.value = 0;
+      hoverItemDragY.value = 0;
       hoverItemOffsetX.value = pageX - listPageX - locationX;
       hoverItemOffsetY.value = pageY - listPageY - locationY;
-      hoverItemTranslateX.value = pageX - listPageX - locationX;
-      hoverItemTranslateY.value = pageY - listPageY - locationY;
     });
   };
 
